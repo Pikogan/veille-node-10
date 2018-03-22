@@ -1,44 +1,27 @@
 const express = require('express');
-const fs = require('fs');
+const fs = require('fs')
 const util = require("util");
 const app = express();
-const http = require('http')
-const bodyParser= require('body-parser');
 
-const server = http.createServer(app);
-const io = require('./mes_modules/chat_socket').listen(server);
+var server = require('http').createServer(app);
+var io = require('./mes_modules/chat_socket').listen(server);
 
-const MongoClient = require('mongodb').MongoClient; // le pilote MongoDB
+const peupler = require('./mes_modules/peupler')
+const bodyParser= require('body-parser')
+const MongoClient = require('mongodb').MongoClient // le pilote MongoDB
 const ObjectID = require('mongodb').ObjectID;
-app.use(bodyParser.urlencoded({extended: true}));
-app.use(bodyParser.json())
+app.use(bodyParser.urlencoded({extended: true}))
 /* on associe le moteur de vue au module «ejs» */
-
-const i18n = require('i18n');
-const cookieParser = require('cookie-parser');
-
-app.use(cookieParser())
-
 app.use(express.static('public'));
-
-i18n.configure({ 
-   locales : ['fr', 'en'],
-   cookie : 'langueChoisie', 
-   directory : __dirname + '/locales' })
-
-app.use(i18n.init);
-
-/* Ajoute l'objet i18n à l'objet global «res» */
 
 let db // variable qui contiendra le lien sur la BD
 
 MongoClient.connect('mongodb://127.0.0.1:27017', (err, database) => {
  if (err) return console.log(err)
  db = database.db('carnet_adresse')
-console.log('connexion à la BD')
+
 // lancement du serveur Express sur le port 8081
- server.listen(8081, (err) => {
- 	if (err) console.log(err)
+server.listen(8081, () => {
  console.log('connexion à la BD et on écoute sur le port 8081')
  })
 })
@@ -51,21 +34,8 @@ Les routes
 ////////////////////////////////////////// Route /
 app.set('view engine', 'ejs'); // générateur de template
 
-//////////////////////////////////////////
-app.get('/:local(en|fr)', function (req, res) {
-    
-    console.log(req.params.local)
-    res.cookie('langueChoisie' , req.params.local)
-    res.setLocale(req.params.local)
-    console.log(res.__('courriel'))
-
-res.redirect(req.get('referer')) 
- 
-  });
-
-//////////////////////////////////////////
 app.get('/', function (req, res) {
- console.log("req.cookies.langueChoisie = " + req.cookies.langueChoisie)
+      
  res.render('accueil.ejs')  
  
   });
@@ -80,7 +50,24 @@ app.get('/adresse', function (req, res) {
 })
 //////////////////////////////////////////  Route Rechercher
 app.post('/rechercher',  (req, res) => {
+   let recherche = req.body.recherche.toLowerCase()
+   let regRecherche = new RegExp(recherche, 'i')
+   var match = regRecherche.exec(recherche);
+	console.log("match[0] = " + match[0]); 
+	console.log("match[1] = " + match[1]); 
 
+   console.log(recherche)
+   let cursor = db.collection('adresse')
+                .find({$or: [ 
+                				{nom: {$regex :regRecherche, $options: "$i"}},
+                			  {prenom: {$regex :regRecherche, $options: "$i"}},
+                			 	{telephone: {$regex :regRecherche, $options: "$i"}},
+                				{courriel: {$regex :regRecherche, $options: "$i"}}
+                			]
+                		}).toArray(function(err, resultat){
+ if (err) return console.log(err)        
+ res.render('adresse.ejs', {adresses: resultat, recherche:recherche})   
+  });
 })
 ////////////////////////////////////////// Route /ajouter
 app.post('/ajouter', (req, res) => {
@@ -89,7 +76,7 @@ console.log('route /ajouter')
  if (err) return console.log(err)
  // console.log(req.body)	
  console.log('sauvegarder dans la BD')
-    res.send(JSON.stringify(req.body))
+ res.redirect('/adresse')
  })
 })
 
@@ -101,7 +88,7 @@ req.body._id = 	ObjectID(req.body._id)
  db.collection('adresse').save(req.body, (err, result) => {
 	 if (err) return console.log(err)
 	 console.log('sauvegarder dans la BD')
-         res.send(JSON.stringify(req.body))
+	 res.redirect('/adresse')
 	 })
 })
 
@@ -133,7 +120,27 @@ app.get('/trier/:cle/:ordre', (req, res) => {
 })
 
 }) 
+/////////////////////////////////////////////////////////  Route /peupler
+app.get('/peupler', (req, res) => {
+	let collectionMembre = peupler()
+	/*
+	for (elm of tabMembre)
+	{
+	let cursor = db.collection('adresse').save(elm, (err, res)=>{
+		if(err) console.error(err)
+			console.log('ok')
 
+		})
+	}
+	*/
+
+	let cursor = db.collection('adresse').insertMany(collectionMembre, (err, resultat)=>{
+		if(err) console.error(err)
+			// console.log('ok')
+			// console.log(util.inspect(resultat))
+			res.redirect('/adresse')
+		})
+})
 
 /////////////////////////////////////////////////////////  Route /peupler
 app.get('/vider', (req, res) => {
@@ -146,53 +153,9 @@ app.get('/vider', (req, res) => {
 	res.redirect('/adresse')
 })
 
-//////////////////////////////////////////////////////////
-// Dans notre application serveur
-// Une nouvelle route pour traiter la requête AJAX
-
-app.post('/ajax_modifier', (req,res) => {
-    console.log('route /ajax_modifier')
-    // console.log('util = ' + util.inspect(req.body));
-    req.body._id = 	ObjectID(req.body._id)
-        console.log('req.body._id =' + req.body._id)
-     db.collection('adresse').save(req.body, (err, result) => {
-         if (err) return console.log(err)
-         console.log('sauvegarder dans la BD')
-         res.send(JSON.stringify(req.body))
-	 })
-})
-
-//////////////////////////////////////////////////////////
-// Dans notre application serveur
-// Une nouvelle route pour traiter la requête AJAX
-
-app.post('/ajax_ajouter', (req,res) => {
-console.log('route /ajax_ajouter')	
- db.collection('adresse').save(req.body, (err, result) => {
- if (err) return console.log(err)
- console.log('req.body._id =' + req.body._id)	
- console.log('sauvegarder dans la BD')
-    res.send(JSON.stringify(req.body))
- })
-})
-
-///////////////////////////////////////////////////////////
-
-app.post('/ajax_detruire/', (req, res) => {
- console.log('route /detruire')
- // console.log('util = ' + util.inspect(req.params));	
- db.collection('adresse')
- .findOneAndDelete({"_id": ObjectID(req.body._id)}, (err, resultat) => {
-
-if (err) return console.log(err)
- res.send(JSON.stringify(resultat))  // redirige vers la route qui affiche la collection
- })
-})
-
-//////////////////////////////////////////////////////////
 
 app.get('/chat', (req, res) => {
-        res.render('socket_vue.ejs');
+	res.render('socket_vue.ejs')
 })
 
 
