@@ -11,10 +11,10 @@ const bodyParser= require('body-parser')
 const MongoClient = require('mongodb').MongoClient // le pilote MongoDB
 const ObjectID = require('mongodb').ObjectID;
 app.use(bodyParser.urlencoded({extended: true}))
-/* on associe le moteur de vue au module «ejs» */
+à
 app.use(express.static('public'));
 
-let db // variable qui contiendra le lien sur la BD
+let db 
 
 MongoClient.connect('mongodb://127.0.0.1:27017', (err, database) => {
  if (err) return console.log(err)
@@ -123,21 +123,9 @@ app.get('/trier/:cle/:ordre', (req, res) => {
 /////////////////////////////////////////////////////////  Route /peupler
 app.get('/peupler', (req, res) => {
 	let collectionMembre = peupler()
-	/*
-	for (elm of tabMembre)
-	{
-	let cursor = db.collection('adresse').save(elm, (err, res)=>{
-		if(err) console.error(err)
-			console.log('ok')
-
-		})
-	}
-	*/
 
 	let cursor = db.collection('adresse').insertMany(collectionMembre, (err, resultat)=>{
 		if(err) console.error(err)
-			// console.log('ok')
-			// console.log(util.inspect(resultat))
 			res.redirect('/adresse')
 		})
 })
@@ -152,7 +140,6 @@ app.get('/vider', (req, res) => {
 		})
 	res.redirect('/adresse')
 })
-
 
 app.get('/chat', (req, res) => {
 	res.render('socket_vue.ejs')
