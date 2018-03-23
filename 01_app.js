@@ -11,7 +11,7 @@ const bodyParser= require('body-parser')
 const MongoClient = require('mongodb').MongoClient // le pilote MongoDB
 const ObjectID = require('mongodb').ObjectID;
 app.use(bodyParser.urlencoded({extended: true}))
-à
+
 app.use(express.static('public'));
 
 let db 
